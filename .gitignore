@@ -1,0 +1,33 @@
+# ── Secrets — NEVER commit (see docs/06-security.md) ──
+.env
+*.env
+!.env.example
+auth.json
+**/auth.json
+
+# ── Board databases + generated data ──
+*.db
+*.sqlite
+*.sqlite3
+work/
+vault/
+intake/
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# ── Editor / OS ──
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── Backups / scratch ──
+*.bak
+*.bak_*
+*.bak.*

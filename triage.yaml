@@ -1,0 +1,172 @@
+# ===========================================================================
+# triage.yaml — ai-agent-pain-points Conductor  (the bundled worked example)
+#
+# The reference pipeline this template was extracted from. Scouts watch X,
+# Reddit, YouTube, and the web for concrete pain points AI-agent users hit →
+# score against a rubric → research in parallel → route each to BUILD a fix or
+# make an explainer VIDEO (or shelve) → PROPOSE at one human gate → on approval,
+# fulfill and deliver. One host, one Kanban board; Telegram for the human gate.
+#
+# The engine in engine/ is generic. THIS file + paths/*.md + the scout skills
+# are the whole adaptation. Read examples/ai-agent-pain-points/REFERENCE.md for
+# the full write-up. Validate after every edit:  python -m cli.triage validate
+# ===========================================================================
+
+name: ai-agent-pain-points
+board: pain-point
+workspace_root: ./work
+cost_gate_usd: 5
+
+# --------------------------------------------------------------------------- #
+# SOURCES — two scouts on staggered hourly crons. The X scout runs a provider
+# with first-class X access; the web scout runs a general model over Reddit /
+# YouTube / the open web. Each emits candidates onto one intake card. Scouts
+# DETECT only — they never dedup, score, or route.
+# --------------------------------------------------------------------------- #
+sources:
+  - id: x
+    profile: xresearch
+    skill: pain-point-scout-x
+    schedule: "0 * * * *"          # top of every hour
+    query: |
+      Scan X (Twitter) for fresh, specific pain points that USERS OF AI AGENTS
+      voice — friction, failure, wasted time, confusion, or abandonment with
+      agents and agent tooling (Claude Code, Codex, Cursor, MCP, agent memory,
+      multi-agent setups, install/onboarding, cron/scheduling, tool use). Favor
+      concrete complaints with engagement over vague sentiment. For each emit one
+      candidate: a short title; a one-line claim of the pain; the post URL with a
+      VERBATIM quote as the source; and one line on why it may matter. Never
+      invent pain to fill a quota — zero candidates is a valid sweep.
+  - id: web
+    profile: webresearch
+    skill: pain-point-scout-web
+    schedule: "30 * * * *"         # offset half an hour from the X scout
+    query: |
+      Scan Reddit, YouTube, and the open web for concrete pain points AI-agent
+      users hit — the same surface as the X scout, different sources. Favor
+      threads/comments/videos describing a specific failure or confusion with a
+      reproducible context. For each emit one candidate: title; one-line claim;
+      source URL + a verbatim quote; one line on why it may matter. Drop
+      low-signal hype. No source URL → drop the claim.
+
+# --------------------------------------------------------------------------- #
+# ITEM SCHEMA — what a scout emits per candidate (the scout-report contract in
+# engine/intake_parser.py). The verbatim quote in `sources` is the ground truth
+# the rest of the pipeline reasons from.
+# --------------------------------------------------------------------------- #
+item_schema:
+  fields:
+    - title
+    - claim
+    - sources
+    - why_it_may_matter
+
+# --------------------------------------------------------------------------- #
+# DEDUP — don't process the same pain point twice across sweeps. Content
+# similarity (token-cosine) is enough; swap to embeddings as the corpus grows.
+# --------------------------------------------------------------------------- #
+dedup:
+  method: token-cosine
+  duplicate_threshold: 0.62
+  possible_threshold: 0.40
+
+# --------------------------------------------------------------------------- #
+# RUBRIC — is this pain point worth a human's one tap? Five dimensions, 0–100,
+# ship at 65. The "solvable-or-explainable" dimension is path-agnostic: it lets
+# ONE pipeline either build a fix or explain an existing solution. Below 65 is
+# auto-shelved — the human is never bothered.
+# --------------------------------------------------------------------------- #
+rubric:
+  threshold: 65
+  dimensions:
+    - {key: frequency,                 max: 25, hint: "how many independent users hit this (corroboration, not one rant)"}
+    - {key: intensity,                 max: 20, hint: "how much it hurts — wasted time, blocked work, churn"}
+    - {key: solvable_or_explainable,   max: 25, hint: "can an agent BUILD a fix OR is there a solution that just needs EXPLAINING"}
+    - {key: solution_gap,              max: 15, hint: "how poorly served this is today (no tool / broken / confusing)"}
+    - {key: strategic_fit,             max: 15, hint: "fit with what this pipeline is for (AI-agent users' pain)"}
+
+# --------------------------------------------------------------------------- #
+# RESEARCH LANES — run in parallel before routing (fan-in: route waits on all
+# three). verify_sources confirms the claim is real; gather_context pulls prior
+# discussion; audit_solutions surveys what already exists and emits the
+# `solution_quality` the router reads.
+# --------------------------------------------------------------------------- #
+research_lanes:
+  role: researcher
+  lanes:
+    - verify_sources              # the claim is real and traceable to a primary source
+    - gather_context              # prior discussion / how widespread / adjacent reports
+    - audit_solutions             # survey existing solutions → emits solution_quality (the classifier)
+  classifier_lane: audit_solutions
+
+# --------------------------------------------------------------------------- #
+# ROUTE — the existing-solutions audit decides the path. No tool / broken tool →
+# BUILD one. A solution exists but is confusing / poorly documented / outdated →
+# make an explainer VIDEO. Already well served → SHELVE (don't duplicate it).
+# --------------------------------------------------------------------------- #
+route:
+  classifier: audit_solutions.solution_quality
+  map:
+    missing:            build
+    broken:             build
+    confusing:          video
+    poorly_documented:  video
+    outdated:           video
+    good:               shelve
+
+# --------------------------------------------------------------------------- #
+# PATHS — what happens per route outcome. prep runs BEFORE the gate; fulfill
+# runs only AFTER a human approves. Build stays inside the hard scope rails in
+# paths/rails/build.md; video output format is pinned by paths/specs/video.md.
+# --------------------------------------------------------------------------- #
+paths:
+  # missing / broken → synthesize the problem, propose a bounded build, then GATE.
+  build:
+    prep:
+      - {stage: synthesize, role: analyst}        # frame the problem + pick a candidate fix
+    propose: {role: orchestrator, template: paths/proposals/build.md}
+    fulfill:
+      - {stage: prototype, role: builder}         # build the approved prototype (within the rails)
+      - {stage: test,      role: tester}          # exercise it on real inputs
+      - {stage: report,    role: orchestrator}    # write up + deliver to the human
+    workspace_subdir: builds
+    scope_rails: paths/rails/build.md
+
+  # confusing / poorly_documented / outdated → an explainer video for what exists.
+  video:
+    prep:
+      - {stage: outline, role: video_producer}    # research the solution + outline the explainer
+    propose: {role: orchestrator, template: paths/proposals/video.md}
+    fulfill:
+      - {stage: slides,  role: video_producer}    # self-contained slides.html
+      - {stage: script,  role: video_producer}    # speaker script tracking the deck
+      - {stage: deliver, role: orchestrator}      # deliver to the human
+    workspace_subdir: videos
+    deliverable_spec: paths/specs/video.md
+
+  # already well served → no work; recorded and closed.
+  shelve:
+    auto: true
+
+# --------------------------------------------------------------------------- #
+# ROLES — abstract role → real Hermes profile. The fleet from REFERENCE.md:
+# one orchestrator (the only Telegram-facing profile), one researcher running
+# the lanes, and the build/video workers.
+# --------------------------------------------------------------------------- #
+roles:
+  orchestrator:   orchestrator
+  researcher:     researcher
+  analyst:        analyst
+  builder:        builder
+  tester:         tester
+  video_producer: video_producer
+
+# --------------------------------------------------------------------------- #
+# GATE — the single human approval point (via Telegram). Replies carry NO
+# leading slash (Telegram reserves /commands).
+# --------------------------------------------------------------------------- #
+gate:
+  channel: telegram
+  approve: [approve]
+  shelve:  [shelve]
+  modify:  [modify]

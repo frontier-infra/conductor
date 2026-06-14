@@ -1,0 +1,56 @@
+# agents.yaml — the fleet for the bundled ai-agent-pain-points example, and the
+# autonomy dial per agent. This is descriptive: roles → profiles live in
+# triage.yaml (`roles:`); this file records each agent's job and how far it is
+# armed. Read it next to CONFORMANCE.md (Box 5, the Autonomy Dial).
+#
+#   off      not wired / not armed — define it, but it does nothing yet
+#   dry-run  runs and PROPOSES, but takes no side effect without the human gate
+#   live     side effects armed (only after you deliberately turn the dial up)
+#
+# Default posture is propose-by-default: the detect→score→research→propose loop
+# runs dry-run; the post-gate fulfillment workers stay `off` until you wire them.
+modes:
+  - off
+  - dry-run
+  - live
+agents:
+  - id: conductor
+    label: Conductor (orchestrator)
+    scope: intake → dedup → score → route → propose → gate
+    mode: dry-run
+    prompt_path: skills/templates/triage-orchestrator/SKILL.md
+  - id: scout-x
+    label: Pain-point scout — X
+    scope: hourly read-only scan of X for AI-agent pain points
+    mode: dry-run
+    prompt_path: examples/ai-agent-pain-points/reference-skills/pain-point-scout-x/SKILL.md
+  - id: scout-web
+    label: Pain-point scout — web
+    scope: hourly read-only scan of Reddit / YouTube / web
+    mode: dry-run
+    prompt_path: skills/templates/triage-scout/SKILL.md
+  - id: researcher
+    label: Research lanes
+    scope: verify_sources · gather_context · audit_solutions (the classifier)
+    mode: dry-run
+    prompt_path: triage.yaml
+  - id: analyst
+    label: Build analyst
+    scope: synthesize the problem + frame a bounded build proposal
+    mode: off
+    prompt_path: paths/proposals/build.md
+  - id: builder
+    label: Builder (build path)
+    scope: build the approved prototype, within paths/rails/build.md
+    mode: off
+    prompt_path: paths/rails/build.md
+  - id: tester
+    label: Tester (build path)
+    scope: exercise the prototype on real inputs
+    mode: off
+    prompt_path: ""
+  - id: video_producer
+    label: Video producer (video path)
+    scope: outline → slides.html → speaker script, per paths/specs/video.md
+    mode: off
+    prompt_path: paths/specs/video.md
