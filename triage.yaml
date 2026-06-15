@@ -18,6 +18,20 @@ workspace_root: ./work
 cost_gate_usd: 5
 
 # --------------------------------------------------------------------------- #
+# CONTRACT — provenance for this config-as-contract: who proposed it, who
+# INDEPENDENTLY ratified it (ratified_by MUST differ from proposed_by — that
+# separation is the point), and the acceptance tests that prove it still holds.
+# The engine ignores this block (engine/config.py reads named keys only); it
+# documents the contract's pedigree so the decomposition is independently vouched.
+# --------------------------------------------------------------------------- #
+contract:
+  proposed_by: frontier-infra
+  ratified_by: frontier-infra council      # independent ratifier — distinct from proposed_by
+  acceptance_tests:
+    - python -m cli.triage validate
+    - python -m unittest discover -s tests
+
+# --------------------------------------------------------------------------- #
 # SOURCES — two scouts on staggered hourly crons. The X scout runs a provider
 # with first-class X access; the web scout runs a general model over Reddit /
 # YouTube / the open web. Each emits candidates onto one intake card. Scouts

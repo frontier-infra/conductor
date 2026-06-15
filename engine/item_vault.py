@@ -12,7 +12,9 @@ You should rarely need to edit this file when adapting the template.
 """
 from __future__ import annotations
 
+import os
 import re
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -55,8 +57,25 @@ class ItemVault:
         return Item(path=path, frontmatter=fm, body=body)
 
     def save(self, item: Item) -> None:
+        # Atomic, kill-safe write: serialize to a temp file in the SAME directory
+        # (so os.replace stays on one filesystem), then atomically swap it into
+        # place. A crash mid-write leaves the temp file, never a half-written item.
         item.path.parent.mkdir(parents=True, exist_ok=True)
-        item.path.write_text(dumps_frontmatter(item.frontmatter, item.body), encoding="utf-8")
+        content = dumps_frontmatter(item.frontmatter, item.body)
+        fd, tmp_name = tempfile.mkstemp(
+            dir=item.path.parent, prefix=f".{item.path.name}.", suffix=".tmp"
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(content)
+            os.replace(tmp_name, item.path)
+        except BaseException:
+            # Clean up the temp file if the swap never happened.
+            try:
+                os.unlink(tmp_name)
+            except FileNotFoundError:
+                pass
+            raise
 
     def create_item(
         self,
