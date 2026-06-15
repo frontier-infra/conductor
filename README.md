@@ -104,13 +104,16 @@ examples/                Reference configs
 ## Conformance
 
 Conductor is a **reference template** for the ops driver in **The Machine** (the six-box harness)
-— a running starting point you adapt, not a turnkey product. As shipped (the pain-points example)
-it demonstrates **L3 — Enforced**: a non-bypassable human gate, **propose-by-default** (no side
-effect until a human approves), a cost gate, and dedup. Emitting a signed **AAR** per approved
-action via the org's [`aar.mjs`](https://github.com/frontier-infra/agentcontrolplane) reaches
-**L4 — Receipted** — the same step the sibling
-[machine-driver](https://github.com/frontier-infra/machine-driver) is taking. Conformance is a
-property of *your wired deployment*; full mapping + caveats in [`CONFORMANCE.md`](./CONFORMANCE.md).
+— a running starting point you adapt, not a turnkey product. The **kit is the source of truth**;
+scored against **Conformance Spec vNext** it lands **L2 — Instrumented**: the Enforced *shape* is
+demonstrated (a non-bypassable human gate, **propose-by-default** — no side effect until a human
+approves — a cost gate, fail-closed verify, dedup), with Box 4 verify and Box 0 independent
+ratification already passing at L3. The level is gated at L2 until the vNext L3 controls (Δ1
+reversibility, Δ2 operator-override, Δ3 runtime-health, audit hooks) land; emitting a signed **AAR**
+per action via the org's [`aar.mjs`](https://github.com/frontier-infra/agentcontrolplane) is the
+**L4 — Receipted** step the sibling [machine-driver](https://github.com/frontier-infra/machine-driver)
+has taken. Full mapping + caveats — and the command to score it yourself — in
+[`CONFORMANCE.md`](./CONFORMANCE.md).
 
 ## Security
 
